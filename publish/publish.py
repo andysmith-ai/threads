@@ -128,7 +128,7 @@ def _parent_id(post: Post, state: dict) -> str | None:
     return parent["last_media_id"]
 
 
-def _publish(post: Post, state: dict, push: bool) -> bool:
+def _publish(post: Post, state: dict, push: bool, open_replies: bool) -> bool:
     parent_id = _parent_id(post, state)
     if post.reply_to and not parent_id:
         return False
@@ -141,8 +141,9 @@ def _publish(post: Post, state: dict, push: bool) -> bool:
         ids: list[str] = []
         urls: list[str] = []
         reply_to_id = parent_id
-        for segment in post.segments:
-            result = publish_text(user_id, token, segment, reply_to_id)
+        for index, segment in enumerate(post.segments):
+            reply_control = "everyone" if open_replies and index == len(post.segments) - 1 else None
+            result = publish_text(user_id, token, segment, reply_to_id, reply_control)
             reply_to_id = result["media_id"]
             ids.append(reply_to_id)
             if result.get("url"):
@@ -175,6 +176,7 @@ def main() -> int:
     state = json.load(open(STATE, encoding="utf-8")) if os.path.exists(STATE) else {}
     posts = [parse(path) for path in sorted(glob.glob(os.path.join(POSTS, "*.md")))]
     pending = {post.slug: post for post in posts if post.slug not in state}
+    reply_targets = {post.reply_to for post in posts if post.reply_to}
 
     if dry:
         simulated = dict(state)
@@ -201,7 +203,7 @@ def main() -> int:
             if post.reply_to and not _parent_id(post, state):
                 continue
             try:
-                _publish(post, state, push)
+                _publish(post, state, push, post.slug in reply_targets)
             except (ThreadsError, RuntimeError):
                 failed += 1
             del pending[post.slug]

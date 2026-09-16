@@ -13,7 +13,11 @@ GRAPH = "https://graph.threads.net/v1.0"
 
 
 class ThreadsError(RuntimeError):
-    pass
+    def __init__(self, message: str, code: int | None = None,
+                 subcode: int | None = None):
+        super().__init__(message)
+        self.code = code
+        self.subcode = subcode
 
 
 def _request(method: str, path: str, token: str, fields: dict[str, str]) -> dict:
@@ -31,7 +35,15 @@ def _request(method: str, path: str, token: str, fields: dict[str, str]) -> dict
             return json.load(response)
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", "replace")[:1000]
-        raise ThreadsError(f"Threads API {method} {path} failed ({error.code}): {body}") from None
+        try:
+            details = (json.loads(body).get("error") or {})
+        except (json.JSONDecodeError, AttributeError):
+            details = {}
+        raise ThreadsError(
+            f"Threads API {method} {path} failed ({error.code}): {body}",
+            details.get("code"),
+            details.get("error_subcode"),
+        ) from None
     except (urllib.error.URLError, TimeoutError) as error:
         raise ThreadsError(f"Threads API {method} {path} failed: {error}") from None
 
@@ -68,12 +80,23 @@ def current_user_id(token: str) -> str:
 
 
 def publish_text(user_id: str, token: str, text: str,
-                 reply_to_id: str | None = None) -> dict:
+                 reply_to_id: str | None = None,
+                 reply_control: str | None = None) -> dict:
     """Create and publish one text post. Returns media_id and optional permalink."""
     form = {"media_type": "TEXT", "text": text}
     if reply_to_id:
         form["reply_to_id"] = reply_to_id
-    created = _request("POST", f"/{user_id}/threads", token, form)
+    if reply_control:
+        form["reply_control"] = reply_control
+    for attempt in range(7):
+        try:
+            created = _request("POST", f"/{user_id}/threads", token, form)
+            break
+        except ThreadsError as error:
+            parent_not_visible = error.code == 24 and error.subcode == 4279009
+            if not reply_to_id or not parent_not_visible or attempt == 6:
+                raise
+            time.sleep(10)
     container_id = created.get("id")
     if not container_id:
         raise ThreadsError(f"Threads create returned no id: {created}")
