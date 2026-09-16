@@ -5,27 +5,205 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Cache-Control" content="no-store">
-  <title>Threads OAuth callback</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://graph.threads.com https://graph.threads.net; form-action https://threads.com; base-uri 'none'; frame-ancestors 'none'">
+  <title>Threads OAuth setup</title>
   <style>
-    body { max-width: 44rem; margin: 4rem auto; padding: 0 1rem;
-           font: 18px/1.5 system-ui, sans-serif; color: #171717; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 46rem; margin: 2rem auto; padding: 0 1rem 4rem; line-height: 1.5; }
+    form, section { display: grid; gap: 1rem; margin: 1.5rem 0; }
+    label { display: grid; gap: .35rem; font-weight: 600; }
+    input, select, textarea, button { box-sizing: border-box; width: 100%; padding: .8rem;
+      border: 1px solid #8888; border-radius: .55rem; font: inherit; }
+    button { cursor: pointer; font-weight: 700; background: #111; color: #fff; }
+    button.secondary { background: transparent; color: inherit; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .check { display: flex; align-items: center; gap: .6rem; font-weight: 400; }
+    .check input { width: auto; }
+    .notice { padding: .8rem 1rem; border-left: .3rem solid #d88a00; background: #d88a0018; }
+    .ok { border-color: #16803c; background: #16803c18; }
+    .error { border-color: #bd2020; background: #bd202018; }
     code { overflow-wrap: anywhere; }
+    [hidden] { display: none !important; }
+    @media (max-width: 34rem) { .row { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-  <h1>Threads authorization</h1>
-  <p id="status">This page is the HTTPS callback bridge for the local authorization helper.</p>
-  <p><a id="manual" hidden>Return to the local helper</a></p>
+  <h1>Threads OAuth setup</h1>
+  <p>Authorize <strong>andysmith.ai</strong> and <strong>agent.smith.ai</strong> separately.
+     Everything runs in this browser. Nothing is sent to Zeno or GitHub.</p>
+  <p class="notice"><strong>Security boundary:</strong> the Threads App Secret and resulting
+     tokens are stored in this origin's localStorage on this device. This is intentionally
+     client-side, contrary to Meta's normal server-side recommendation. This page has no
+     third-party scripts, but any future script deployed at this origin could read them.</p>
+
+  <form id="authorize" autocomplete="off">
+    <label>Account
+      <select id="actor">
+        <option value="andy">Andy — andysmith.ai</option>
+        <option value="agent">Agent — agent.smith.ai</option>
+      </select>
+    </label>
+    <label>Threads App ID
+      <input id="app-id" inputmode="numeric" required>
+    </label>
+    <label>Threads App Secret
+      <input id="app-secret" type="password" required>
+    </label>
+    <label class="check"><input id="remember" type="checkbox" checked>
+      Keep App ID and App Secret in localStorage on this tablet</label>
+    <label class="check"><input id="remember-token" type="checkbox" checked>
+      Keep the resulting account token in localStorage</label>
+    <button type="submit">Authorize selected Threads account</button>
+  </form>
+
+  <section id="working" class="notice" hidden></section>
+  <section id="result" class="notice ok" hidden>
+    <h2>Authorization complete</h2>
+    <p id="identity"></p>
+    <label>Long-lived access token
+      <textarea id="token" rows="5" readonly></textarea>
+    </label>
+    <button id="copy" type="button">Copy token</button>
+    <p id="github-names"></p>
+    <p id="expiry"></p>
+  </section>
+  <section id="failure" class="notice error" hidden>
+    <h2>Authorization failed</h2>
+    <pre id="error"></pre>
+    <p id="fallback" hidden><a id="exchange-link" rel="noreferrer">Open Meta's long-token response</a>.
+       If the browser blocked the final cross-origin request, this link displays the JSON token
+       response directly from Meta.</p>
+  </section>
+
   <script>
     (() => {
-      if (!location.search) return;
-      const local = `http://127.0.0.1:8787/callback${location.search}`;
-      const link = document.getElementById('manual');
-      link.href = local;
-      link.hidden = false;
-      document.getElementById('status').textContent =
-        'Returning the one-time authorization code to the local helper…';
-      setTimeout(() => location.replace(local), 100);
+      'use strict';
+      const REDIRECT_URI = 'https://andysmith-ai.github.io/threads/';
+      const LOCAL_CALLBACK = 'http://127.0.0.1:8787/callback';
+      const SCOPES = 'threads_basic,threads_content_publish,threads_manage_replies';
+      const PENDING_KEY = 'threads.oauth.pending';
+      const APP_KEY = 'threads.oauth.app';
+
+      const byId = id => document.getElementById(id);
+      const show = (id, visible = true) => { byId(id).hidden = !visible; };
+      const setWorking = text => { byId('working').textContent = text; show('working'); };
+      const randomState = () => {
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+      };
+      const json = async response => {
+        const text = await response.text();
+        let body;
+        try { body = JSON.parse(text); } catch { throw new Error(`Meta returned ${response.status}: ${text}`); }
+        if (!response.ok || body.error || body.error_type) {
+          throw new Error(body.error?.message || body.error_message || JSON.stringify(body));
+        }
+        return body;
+      };
+      const storedApp = (() => {
+        try { return JSON.parse(localStorage.getItem(APP_KEY) || '{}'); } catch { return {}; }
+      })();
+      byId('app-id').value = storedApp.appId || '';
+      byId('app-secret').value = storedApp.appSecret || '';
+
+      byId('authorize').addEventListener('submit', event => {
+        event.preventDefault();
+        const actor = byId('actor').value;
+        const appId = byId('app-id').value.trim();
+        const appSecret = byId('app-secret').value.trim();
+        const state = randomState();
+        const pending = { actor, appId, appSecret, state,
+          rememberToken: byId('remember-token').checked, createdAt: Date.now() };
+        sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+        if (byId('remember').checked) {
+          localStorage.setItem(APP_KEY, JSON.stringify({ appId, appSecret }));
+        } else {
+          localStorage.removeItem(APP_KEY);
+        }
+        const params = new URLSearchParams({ client_id: appId, redirect_uri: REDIRECT_URI,
+          scope: SCOPES, response_type: 'code', state });
+        location.assign(`https://threads.com/oauth/authorize?${params}`);
+      });
+
+      byId('copy').addEventListener('click', async () => {
+        await navigator.clipboard.writeText(byId('token').value);
+        byId('copy').textContent = 'Copied';
+      });
+
+      const fail = (error, fallbackUrl) => {
+        show('working', false);
+        byId('error').textContent = String(error?.message || error);
+        if (fallbackUrl) {
+          byId('exchange-link').href = fallbackUrl;
+          show('fallback');
+        }
+        show('failure');
+      };
+
+      const complete = (pending, short, long) => {
+        const token = long.access_token;
+        const userId = String(short.user_id);
+        const prefix = pending.actor.toUpperCase();
+        const expiresAt = long.expires_in ? new Date(Date.now() + Number(long.expires_in) * 1000) : null;
+        if (pending.rememberToken) {
+          localStorage.setItem(`threads.credentials.${pending.actor}`, JSON.stringify({
+            userId, accessToken: token, expiresAt: expiresAt?.toISOString() || null
+          }));
+        }
+        byId('identity').textContent = `${pending.actor}: Threads user ID ${userId}`;
+        byId('token').value = token;
+        byId('github-names').textContent =
+          `GitHub variable: ${prefix}_THREADS_USER_ID · GitHub secret: ${prefix}_THREADS_ACCESS_TOKEN`;
+        byId('expiry').textContent = expiresAt ? `Refresh before ${expiresAt.toLocaleString()}` : '';
+        show('working', false);
+        show('result');
+      };
+
+      const handleCallback = async params => {
+        let pending;
+        try { pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); } catch {}
+        if (!pending) {
+          const local = `${LOCAL_CALLBACK}?${params.toString()}`;
+          setWorking('Returning this authorization to the local CLI helper…');
+          location.replace(local);
+          return;
+        }
+        history.replaceState({}, '', location.pathname);
+        if (params.get('state') !== pending.state) return fail('OAuth state mismatch.');
+        if (params.get('error')) return fail(params.get('error_description') || params.get('error'));
+        const code = params.get('code');
+        if (!code) return fail('Meta returned neither an authorization code nor an error.');
+        sessionStorage.removeItem(PENDING_KEY);
+        try {
+          setWorking(`Exchanging ${pending.actor}'s one-time code…`);
+          const shortResponse = await fetch('https://graph.threads.com/oauth/access_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ client_id: pending.appId, client_secret: pending.appSecret,
+              grant_type: 'authorization_code', redirect_uri: REDIRECT_URI, code })
+          });
+          const short = await json(shortResponse);
+          setWorking('Exchanging the one-hour token for a 60-day token…');
+          const longParams = new URLSearchParams({ grant_type: 'th_exchange_token',
+            client_secret: pending.appSecret, access_token: short.access_token });
+          const longUrl = `https://graph.threads.net/access_token?${longParams}`;
+          try {
+            const long = await json(await fetch(longUrl));
+            complete(pending, short, long);
+          } catch (error) {
+            fail(error, longUrl);
+          }
+        } catch (error) {
+          fail(error);
+        }
+      };
+
+      const callback = new URLSearchParams(location.search);
+      if (callback.has('code') || callback.has('error')) {
+        show('authorize', false);
+        handleCallback(callback);
+      }
     })();
   </script>
 </body>
