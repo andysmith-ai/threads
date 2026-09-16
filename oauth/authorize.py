@@ -29,7 +29,7 @@ LOCAL_PORT = 8787
 AUTHORIZE_URL = "https://threads.com/oauth/authorize"
 SHORT_TOKEN_URL = "https://graph.threads.com/oauth/access_token"
 LONG_TOKEN_URL = "https://graph.threads.net/access_token"
-SCOPES = "threads_basic,threads_content_publish,threads_manage_replies"
+SCOPES = "threads_basic,threads_content_publish,threads_manage_replies,threads_read_replies"
 
 
 def authorization_url(app_id: str, redirect_uri: str, state: str) -> str:
