@@ -85,8 +85,9 @@ The following repository variables are optional explicit overrides:
 
 Both accounts must be app roles/testers while the Meta app is in development.
 Tokens need `threads_basic`, `threads_content_publish`,
-`threads_manage_replies`, and `threads_read_replies`. The read permission lets
-the Agent resolve Andy's public reply as the parent of its cross-account reply.
+`threads_manage_replies`, `threads_read_replies`, and
+`threads_manage_mentions`. Read access makes Andy's reply visible to the Agent;
+mention access allows the Agent to reply because Andy explicitly tagged it.
 Long-lived tokens expire after 60 days and must be refreshed while still valid.
 The Andy post must allow replies from the Agent account.
 
