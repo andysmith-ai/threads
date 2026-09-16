@@ -1,10 +1,11 @@
 {
   "publisher-reply-smoke-agent": {
     "actor": "agent",
+    "error": "Threads API POST /27927201656962943/threads failed (400): {\"error\":{\"message\":\"Application does not have permission for this action\",\"type\":\"OAuthException\",\"code\":10,\"error_subcode\":4279015,\"is_transient\":false,\"error_user_title\":\"Cannot Reply Unless Root Post Owner\",\"error_user_msg\":\"You are not allowed to reply to a thread whose root post belongs to someone else unless you have either the 'Keyword Search' or 'Manage Mentions' permission for the associated page\",\"fbtrace_id\":\"AmmH9xK7d2HdbGu7c",
     "reply_to": "publisher-reply-smoke-andy",
     "reply_to_id": null,
     "reply_to_url": null,
-    "status": "sending"
+    "status": "failed"
   },
   "publisher-reply-smoke-andy": {
     "actor": "andy",
