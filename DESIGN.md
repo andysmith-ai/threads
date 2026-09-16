@@ -10,6 +10,10 @@ actors in one dependency graph avoids polling or copying IDs between repositorie
 Zeno produces immutable files. GitHub Actions owns the external Threads API calls.
 Tokens never enter the Zeno research sandbox.
 
+Inbound replies from other people are deliberately not mirrored into git. They
+remain available through Threads; this repository records only publication
+intent and results for our two accounts.
+
 ## Post contract
 
 `posts/<stable-slug>.md`:
@@ -17,7 +21,7 @@ Tokens never enter the Zeno research sandbox.
 ```text
 ---
 actor: andy
-reply_to: optional-parent-slug
+reply_to: optional-local-parent-slug
 ---
 First text segment, at most 500 UTF-8 bytes.
 ---
@@ -26,18 +30,34 @@ Optional second segment.
 
 `actor` is `andy` or `agent`. `reply_to` names another file without `.md`.
 Additional body segments form a chain: each replies to the preceding segment.
-A dependent file replies to its parent's final segment.
+A dependent file replies to its local parent's final segment.
+
+A reply to a post that is not stored here uses its Threads media ID directly:
+
+```text
+---
+actor: andy
+reply_to_id: "12345678901234567"
+reply_to_url: "https://www.threads.net/@someone/post/ABC"
+---
+My reply.
+```
+
+`reply_to_url` is optional provenance for humans; the API uses `reply_to_id`.
+Exactly one of `reply_to` and `reply_to_id` may be present. The foreign parent
+does not need to be copied into this repository.
 
 Public-research slugs are deterministic from the Zulip message ID:
-`research-<id>-question`, `research-<id>-progress`, and
-`research-<id>-answer`. This makes a retried producer commit idempotent.
+`research-<id>-question` and `research-<id>-answer`. This makes a retried
+producer commit idempotent.
 
 ## Delivery
 
 On a push touching `posts/**`, `publish/publish.py`:
 
 1. parses and validates all unpublished files;
-2. waits until each declared parent has a published `last_media_id`;
+2. resolves local parents through `state.json`; external `reply_to_id` values are
+   already ready and require no stored parent;
 3. writes and pushes a `sending` claim to `state.json`;
 4. creates and publishes every segment through the selected actor;
 5. writes the returned media IDs and permalink to `state.json`.

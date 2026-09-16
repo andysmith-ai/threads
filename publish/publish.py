@@ -7,14 +7,16 @@ external API call, so a crash can drop a post but cannot duplicate it.
 Post format:
     ---
     actor: andy | agent
-    reply_to: another-file-slug   # optional
+    reply_to: another-file-slug   # optional local parent
+    reply_to_id: 123456789        # optional external parent
+    reply_to_url: https://...     # optional external provenance
     ---
     text up to 500 UTF-8 bytes
     ---
     optional next segment
 
-Segments after the first reply to the previous segment. A dependent file replies
-to the final segment of its parent file.
+Use either reply_to or reply_to_id, never both. An external parent does not need
+a file in this repository. Segments after the first reply to the previous segment.
 """
 
 from __future__ import annotations
@@ -43,6 +45,8 @@ class Post:
     slug: str
     actor: str
     reply_to: str | None
+    reply_to_id: str | None
+    reply_to_url: str | None
     segments: tuple[str, ...]
 
 
@@ -64,6 +68,10 @@ def parse(path: str) -> Post:
     actor = front.get("actor", "")
     if actor not in ACTORS:
         raise ValueError(f"{path}: actor must be one of {', '.join(ACTORS)}")
+    if front.get("reply_to") and front.get("reply_to_id"):
+        raise ValueError(f"{path}: use reply_to or reply_to_id, not both")
+    if front.get("reply_to_url") and not front.get("reply_to_id"):
+        raise ValueError(f"{path}: reply_to_url requires reply_to_id")
     segments = tuple(part.strip() for part in re.split(r"\n---\n", match.group(2)) if part.strip())
     if not segments:
         raise ValueError(f"{path}: post body is empty")
@@ -75,6 +83,8 @@ def parse(path: str) -> Post:
         slug=os.path.splitext(os.path.basename(path))[0],
         actor=actor,
         reply_to=front.get("reply_to") or None,
+        reply_to_id=front.get("reply_to_id") or None,
+        reply_to_url=front.get("reply_to_url") or None,
         segments=segments,
     )
 
@@ -108,6 +118,8 @@ def _credentials(actor: str) -> tuple[str, str]:
 
 
 def _parent_id(post: Post, state: dict) -> str | None:
+    if post.reply_to_id:
+        return post.reply_to_id
     if not post.reply_to:
         return None
     parent = state.get(post.reply_to) or {}
@@ -120,9 +132,10 @@ def _publish(post: Post, state: dict, push: bool) -> bool:
     parent_id = _parent_id(post, state)
     if post.reply_to and not parent_id:
         return False
-    _save(state, post.slug,
-          {"status": "sending", "actor": post.actor, "reply_to": post.reply_to},
-          f"claim {post.slug} [skip ci]", push)
+    claim = {"status": "sending", "actor": post.actor,
+             "reply_to": post.reply_to, "reply_to_id": post.reply_to_id,
+             "reply_to_url": post.reply_to_url}
+    _save(state, post.slug, claim, f"claim {post.slug} [skip ci]", push)
     try:
         user_id, token = _credentials(post.actor)
         ids: list[str] = []
@@ -138,6 +151,8 @@ def _publish(post: Post, state: dict, push: bool) -> bool:
             "status": "published",
             "actor": post.actor,
             "reply_to": post.reply_to,
+            "reply_to_id": post.reply_to_id,
+            "reply_to_url": post.reply_to_url,
             "media_ids": ids,
             "last_media_id": ids[-1],
             "url": urls[0] if urls else None,
@@ -146,10 +161,10 @@ def _publish(post: Post, state: dict, push: bool) -> bool:
         print(f"posted {post.slug} ({post.actor}) -> {record['url'] or ids[0]}")
     except (ThreadsError, RuntimeError) as error:
         print(f"FAILED {post.slug}: {error}", file=sys.stderr)
-        _save(state, post.slug,
-              {"status": "failed", "actor": post.actor,
-               "reply_to": post.reply_to, "error": str(error)[:500]},
-              f"failed {post.slug} [skip ci]", push)
+        failed = {"status": "failed", "actor": post.actor,
+                  "reply_to": post.reply_to, "reply_to_id": post.reply_to_id,
+                  "reply_to_url": post.reply_to_url, "error": str(error)[:500]}
+        _save(state, post.slug, failed, f"failed {post.slug} [skip ci]", push)
         raise
     return True
 
