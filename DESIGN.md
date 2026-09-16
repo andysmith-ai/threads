@@ -23,7 +23,7 @@ intent and results for our two accounts.
 actor: andy
 reply_to: optional-local-parent-slug
 ---
-First text segment, at most 500 UTF-8 bytes.
+First text segment, at most 500 characters.
 ---
 Optional second segment.
 ```
@@ -60,16 +60,18 @@ than directly to the untagged root question.
 
 On a push touching `posts/**`, `publish/publish.py`:
 
-1. parses and validates all unpublished files;
-2. resolves local parents through `state.json`; external `reply_to_id` values are
-   already ready and require no stored parent;
-3. writes and pushes a `sending` claim to `state.json`;
+1. parses and validates all immutable post intents, skipping those with sidecars;
+2. resolves local parents through `state/<parent-slug>.json`; external
+   `reply_to_id` values are already ready and require no stored parent;
+3. writes and pushes a `sending` claim to `state/<slug>.json`;
 4. creates and publishes every segment through the selected actor;
-5. writes the returned media IDs and permalink to `state.json`.
+5. writes the returned media IDs and permalink to the same sidecar.
 
 Claims happen before API calls. A crash can therefore drop a post but cannot
-duplicate it. Delete a `failed` or `sending` state entry only after checking the
-Threads account manually.
+duplicate it. Each state commit stages only that post's sidecar; bounded
+fetch/rebase/push retries merge concurrent changes to other sidecars, while a
+same-sidecar conflict stops publication. Delete a `failed` or `sending` sidecar
+only after checking the Threads account manually.
 
 The adapter follows the official two-step API: create
 `/{threads-user-id}/threads`, wait for the container, then call

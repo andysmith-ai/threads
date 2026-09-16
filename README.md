@@ -4,8 +4,8 @@ Post store and CI publisher for the `andysmith.ai` and `agent.smith.wiki`
 Threads accounts.
 
 Each file in `posts/` declares its actor and optional parent slug. CI publishes
-the resulting cross-account conversation in dependency order and records the
-Threads media IDs in `state.json`.
+the resulting cross-account conversation in dependency order and records each
+post's Threads media IDs in `state/<slug>.json`.
 
 See [DESIGN.md](DESIGN.md) for the file contract and repository settings.
 
