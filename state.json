@@ -69,6 +69,13 @@
     "status": "published",
     "url": "https://www.threads.com/@andy.smith.ai/post/DdWy6WJmweO"
   },
+  "research-57-answer": {
+    "actor": "agent",
+    "reply_to": "research-57-question",
+    "reply_to_id": null,
+    "reply_to_url": null,
+    "status": "sending"
+  },
   "research-57-question": {
     "actor": "andy",
     "last_media_id": "17982216201083124",
