@@ -3,7 +3,7 @@
 ## Boundary
 
 This repository is the publication ledger for one platform and two actors:
-`andy` (`andysmith.ai`) and `agent` (`agent.smith.ai`). One repository is
+`andy` (`andysmith.ai`) and `agent` (`agent.andy.smith.ai`). One repository is
 intentional: replies need the published media ID of their parent. Keeping both
 actors in one dependency graph avoids polling or copying IDs between repositories.
 
