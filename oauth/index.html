@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>Threads OAuth callback</title>
+  <style>
+    body { max-width: 44rem; margin: 4rem auto; padding: 0 1rem;
+           font: 18px/1.5 system-ui, sans-serif; color: #171717; }
+    code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <h1>Threads authorization</h1>
+  <p id="status">This page is the HTTPS callback bridge for the local authorization helper.</p>
+  <p><a id="manual" hidden>Return to the local helper</a></p>
+  <script>
+    (() => {
+      if (!location.search) return;
+      const local = `http://127.0.0.1:8787/callback${location.search}`;
+      const link = document.getElementById('manual');
+      link.href = local;
+      link.hidden = false;
+      document.getElementById('status').textContent =
+        'Returning the one-time authorization code to the local helper…';
+      setTimeout(() => location.replace(local), 100);
+    })();
+  </script>
+</body>
+</html>
