@@ -82,6 +82,7 @@
       const LOCAL_CALLBACK = 'http://127.0.0.1:8787/callback';
       const SCOPES = 'threads_basic,threads_content_publish,threads_manage_replies';
       const PENDING_KEY = 'threads.oauth.pending';
+      const MAX_PENDING_AGE = 15 * 60 * 1000;
       const APP_KEY = 'threads.oauth.app';
 
       const byId = id => document.getElementById(id);
@@ -112,10 +113,10 @@
         const actor = byId('actor').value;
         const appId = byId('app-id').value.trim();
         const appSecret = byId('app-secret').value.trim();
-        const state = randomState();
+        const state = `web.${randomState()}`;
         const pending = { actor, appId, appSecret, state,
           rememberToken: byId('remember-token').checked, createdAt: Date.now() };
-        sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+        localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
         if (byId('remember').checked) {
           localStorage.setItem(APP_KEY, JSON.stringify({ appId, appSecret }));
         } else {
@@ -162,19 +163,26 @@
 
       const handleCallback = async params => {
         let pending;
-        try { pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); } catch {}
-        if (!pending) {
+        try { pending = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch {}
+        const callbackState = params.get('state') || '';
+        const pendingMatches = pending
+          && callbackState === pending.state
+          && Date.now() - pending.createdAt <= MAX_PENDING_AGE;
+        if (!pendingMatches) {
+          if (callbackState.startsWith('web.')) {
+            history.replaceState({}, '', location.pathname);
+            return fail('Authorization context is missing or expired. Start again from this page in the same browser.');
+          }
           const local = `${LOCAL_CALLBACK}?${params.toString()}`;
           setWorking('Returning this authorization to the local CLI helper…');
           location.replace(local);
           return;
         }
         history.replaceState({}, '', location.pathname);
-        if (params.get('state') !== pending.state) return fail('OAuth state mismatch.');
         if (params.get('error')) return fail(params.get('error_description') || params.get('error'));
         const code = params.get('code');
         if (!code) return fail('Meta returned neither an authorization code nor an error.');
-        sessionStorage.removeItem(PENDING_KEY);
+        localStorage.removeItem(PENDING_KEY);
         try {
           setWorking(`Exchanging ${pending.actor}'s one-time code…`);
           const shortResponse = await fetch('https://graph.threads.com/oauth/access_token', {
