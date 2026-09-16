@@ -1,6 +1,6 @@
 # andysmith-ai/threads
 
-Post store and CI publisher for the `andysmith.ai` and `agent.smith.ai`
+Post store and CI publisher for the `andysmith.ai` and `agent.smith.wiki`
 Threads accounts.
 
 Each file in `posts/` declares its actor and optional parent slug. CI publishes
