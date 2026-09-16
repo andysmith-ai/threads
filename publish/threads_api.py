@@ -53,7 +53,7 @@ def _wait_until_ready(container_id: str, token: str) -> None:
         result = _request("GET", f"/{container_id}", token,
                           {"fields": "id,status,error_message"})
         status = result.get("status")
-        if status in {None, "FINISHED", "PUBLISHED"}:
+        if status in {"FINISHED", "PUBLISHED"}:
             return
         if status in {"ERROR", "EXPIRED"}:
             raise ThreadsError(
@@ -101,8 +101,16 @@ def publish_text(user_id: str, token: str, text: str,
     if not container_id:
         raise ThreadsError(f"Threads create returned no id: {created}")
     _wait_until_ready(container_id, token)
-    published = _request("POST", f"/{user_id}/threads_publish", token,
-                         {"creation_id": container_id})
+    for attempt in range(7):
+        try:
+            published = _request("POST", f"/{user_id}/threads_publish", token,
+                                 {"creation_id": container_id})
+            break
+        except ThreadsError as error:
+            container_not_visible = error.code == 24 and error.subcode == 4279009
+            if not container_not_visible or attempt == 6:
+                raise
+            time.sleep(10)
     media_id = published.get("id")
     if not media_id:
         raise ThreadsError(f"Threads publish returned no id: {published}")
