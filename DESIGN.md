@@ -77,7 +77,8 @@ Secrets:
 - `ANDY_THREADS_ACCESS_TOKEN`
 - `AGENT_THREADS_ACCESS_TOKEN`
 
-Variables:
+The publisher resolves each Threads user ID through `/me` using its access token.
+The following repository variables are optional explicit overrides:
 
 - `ANDY_THREADS_USER_ID`
 - `AGENT_THREADS_USER_ID`

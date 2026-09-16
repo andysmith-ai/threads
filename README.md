@@ -18,13 +18,13 @@ The tablet-friendly OAuth app is deployed at
 2. Add both accounts as Threads Testers and accept both invitations.
 3. Open the OAuth app on the tablet. Enter the Threads App ID and App Secret,
    authorize `andy`, switch the Threads login, then authorize `agent`.
-4. Copy each resulting user ID and 60-day token into the corresponding GitHub
-   Actions variable and secret.
+4. Copy each resulting 60-day token into the corresponding GitHub Actions
+   secret. The publisher resolves each Threads user ID from its token.
 
-The app has no backend or third-party JavaScript. App credentials and resulting
-tokens stay in that browser's localStorage, and token exchanges originate from
-the tablet—not Zeno. This deliberately trades normal server-side App Secret
-isolation for the requested single-device flow.
+The app has no backend or third-party JavaScript. App credentials and temporary
+OAuth transaction data stay in that browser's localStorage, and token exchanges
+originate from the tablet—not Zeno. Long-lived tokens remain only in page memory
+until copied to GitHub Secrets.
 
 `oauth/authorize.py` remains a safer server-side alternative. It keeps the App
 Secret out of browser storage and uses the same Pages URL only as an HTTPS
