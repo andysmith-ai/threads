@@ -59,6 +59,14 @@ def permalink(media_id: str, token: str) -> str | None:
         return None
 
 
+def current_user_id(token: str) -> str:
+    profile = _request("GET", "/me", token, {"fields": "id"})
+    user_id = str(profile.get("id") or "").strip()
+    if not user_id:
+        raise ThreadsError(f"Threads profile returned no id: {profile}")
+    return user_id
+
+
 def publish_text(user_id: str, token: str, text: str,
                  reply_to_id: str | None = None) -> dict:
     """Create and publish one text post. Returns media_id and optional permalink."""

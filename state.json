@@ -1,10 +1,1 @@
-{
-  "publisher-smoke-andy": {
-    "actor": "andy",
-    "error": "ANDY_THREADS_USER_ID and ANDY_THREADS_ACCESS_TOKEN are required for actor andy",
-    "reply_to": null,
-    "reply_to_id": null,
-    "reply_to_url": null,
-    "status": "failed"
-  }
-}
+{}

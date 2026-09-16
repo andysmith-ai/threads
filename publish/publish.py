@@ -29,7 +29,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from threads_api import ThreadsError, publish_text
+from threads_api import ThreadsError, current_user_id, publish_text
 
 
 POSTS = "posts"
@@ -110,10 +110,10 @@ def _save(state: dict, slug: str, record: dict, message: str, push: bool) -> Non
 
 def _credentials(actor: str) -> tuple[str, str]:
     user_env, token_env = ACTORS[actor]
-    user_id = (os.environ.get(user_env) or "").strip()
     token = (os.environ.get(token_env) or "").strip()
-    if not user_id or not token:
-        raise RuntimeError(f"{user_env} and {token_env} are required for actor {actor}")
+    if not token:
+        raise RuntimeError(f"{token_env} is required for actor {actor}")
+    user_id = (os.environ.get(user_env) or "").strip() or current_user_id(token)
     return user_id, token
 
 
@@ -135,7 +135,7 @@ def _publish(post: Post, state: dict, push: bool) -> bool:
     claim = {"status": "sending", "actor": post.actor,
              "reply_to": post.reply_to, "reply_to_id": post.reply_to_id,
              "reply_to_url": post.reply_to_url}
-    _save(state, post.slug, claim, f"claim {post.slug} [skip ci]", push)
+    _save(state, post.slug, claim, f"chore(state): claim {post.slug} [skip ci]", push)
     try:
         user_id, token = _credentials(post.actor)
         ids: list[str] = []
@@ -157,14 +157,14 @@ def _publish(post: Post, state: dict, push: bool) -> bool:
             "last_media_id": ids[-1],
             "url": urls[0] if urls else None,
         }
-        _save(state, post.slug, record, f"published {post.slug} [skip ci]", push)
+        _save(state, post.slug, record, f"chore(state): record {post.slug} publication [skip ci]", push)
         print(f"posted {post.slug} ({post.actor}) -> {record['url'] or ids[0]}")
     except (ThreadsError, RuntimeError) as error:
         print(f"FAILED {post.slug}: {error}", file=sys.stderr)
         failed = {"status": "failed", "actor": post.actor,
                   "reply_to": post.reply_to, "reply_to_id": post.reply_to_id,
                   "reply_to_url": post.reply_to_url, "error": str(error)[:500]}
-        _save(state, post.slug, failed, f"failed {post.slug} [skip ci]", push)
+        _save(state, post.slug, failed, f"chore(state): record {post.slug} failure [skip ci]", push)
         raise
     return True
 
