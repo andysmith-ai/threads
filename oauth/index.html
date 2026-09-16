@@ -68,11 +68,17 @@
     <p id="expiry"></p>
   </section>
   <section id="failure" class="notice error" hidden>
-    <h2>Authorization failed</h2>
+    <h2 id="failure-title">Authorization failed</h2>
     <pre id="error"></pre>
-    <p id="fallback" hidden><a id="exchange-link" rel="noreferrer">Open Meta's long-token response</a>.
-       If the browser blocked the final cross-origin request, this link displays the JSON token
-       response directly from Meta.</p>
+    <div id="fallback" hidden>
+      <p>Meta blocks this final request from browser JavaScript.
+         <a id="exchange-link" target="_blank" rel="noreferrer">Open Meta's long-token response</a>,
+         copy the complete JSON response, then paste it below.</p>
+      <label>Meta JSON response
+        <textarea id="exchange-json" rows="5" placeholder='{"access_token":"…","token_type":"bearer","expires_in":5184000}'></textarea>
+      </label>
+      <button id="import-exchange" type="button">Import access token</button>
+    </div>
   </section>
 
   <script>
@@ -83,7 +89,9 @@
       const SCOPES = 'threads_basic,threads_content_publish,threads_manage_replies';
       const PENDING_KEY = 'threads.oauth.pending';
       const MAX_PENDING_AGE = 15 * 60 * 1000;
+      const MAX_EXCHANGE_AGE = 30 * 60 * 1000;
       const APP_KEY = 'threads.oauth.app';
+      const EXCHANGE_KEY = 'threads.oauth.exchange';
 
       const byId = id => document.getElementById(id);
       const show = (id, visible = true) => { byId(id).hidden = !visible; };
@@ -116,6 +124,7 @@
         const state = `web.${randomState()}`;
         const pending = { actor, appId, appSecret, state,
           rememberToken: byId('remember-token').checked, createdAt: Date.now() };
+        localStorage.removeItem(EXCHANGE_KEY);
         localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
         if (byId('remember').checked) {
           localStorage.setItem(APP_KEY, JSON.stringify({ appId, appSecret }));
@@ -132,9 +141,26 @@
         byId('copy').textContent = 'Copied';
       });
 
+      byId('import-exchange').addEventListener('click', () => {
+        try {
+          const long = JSON.parse(byId('exchange-json').value);
+          if (!long.access_token) throw new Error('Meta response does not contain access_token.');
+          const exchange = JSON.parse(localStorage.getItem(EXCHANGE_KEY) || 'null');
+          if (!exchange || Date.now() - exchange.createdAt > MAX_EXCHANGE_AGE) {
+            throw new Error('Token exchange context is missing or expired. Start authorization again.');
+          }
+          complete(exchange.pending, exchange.short, long);
+        } catch (error) {
+          byId('error').textContent = String(error?.message || error);
+        }
+      });
+
       const fail = (error, fallbackUrl) => {
         show('working', false);
-        byId('error').textContent = String(error?.message || error);
+        byId('failure-title').textContent = fallbackUrl ? 'Finish authorization' : 'Authorization failed';
+        byId('error').textContent = fallbackUrl
+          ? 'The browser blocked Meta’s final token response.'
+          : String(error?.message || error);
         if (fallbackUrl) {
           byId('exchange-link').href = fallbackUrl;
           show('fallback');
@@ -152,12 +178,15 @@
             userId, accessToken: token, expiresAt: expiresAt?.toISOString() || null
           }));
         }
+        localStorage.removeItem(EXCHANGE_KEY);
         byId('identity').textContent = `${pending.actor}: Threads user ID ${userId}`;
         byId('token').value = token;
         byId('github-names').textContent =
           `GitHub variable: ${prefix}_THREADS_USER_ID · GitHub secret: ${prefix}_THREADS_ACCESS_TOKEN`;
         byId('expiry').textContent = expiresAt ? `Refresh before ${expiresAt.toLocaleString()}` : '';
         show('working', false);
+        show('failure', false);
+        show('fallback', false);
         show('result');
       };
 
@@ -196,6 +225,9 @@
           const longParams = new URLSearchParams({ grant_type: 'th_exchange_token',
             client_secret: pending.appSecret, access_token: short.access_token });
           const longUrl = `https://graph.threads.net/access_token?${longParams}`;
+          localStorage.setItem(EXCHANGE_KEY, JSON.stringify({
+            pending, short, longUrl, createdAt: Date.now()
+          }));
           try {
             const long = await json(await fetch(longUrl));
             complete(pending, short, long);
@@ -206,11 +238,21 @@
           fail(error);
         }
       };
-
       const callback = new URLSearchParams(location.search);
       if (callback.has('code') || callback.has('error')) {
         show('authorize', false);
         handleCallback(callback);
+      } else {
+        let exchange;
+        try { exchange = JSON.parse(localStorage.getItem(EXCHANGE_KEY) || 'null'); } catch {}
+        if (exchange && Date.now() - exchange.createdAt <= MAX_EXCHANGE_AGE) {
+          show('authorize', false);
+          byId('failure-title').textContent = 'Finish authorization';
+          byId('error').textContent = 'Complete the final token exchange with Meta.';
+          byId('exchange-link').href = exchange.longUrl;
+          show('fallback');
+          show('failure');
+        }
       }
     })();
   </script>
