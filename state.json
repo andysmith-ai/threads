@@ -1,10 +1,11 @@
 {
   "publisher-smoke-agent": {
     "actor": "agent",
+    "error": "Threads API POST /27927201656962943/threads failed (400): {\"error\":{\"message\":\"The requested resource does not exist\",\"type\":\"OAuthException\",\"code\":24,\"error_subcode\":4279009,\"is_transient\":false,\"error_user_title\":\"Media Not Found\",\"error_user_msg\":\"The media with id 17947867965290919 cannot be found.\",\"fbtrace_id\":\"Ai1BgimprS7JUhYv2cKBEPo\"}}",
     "reply_to": "publisher-smoke-andy",
     "reply_to_id": null,
     "reply_to_url": null,
-    "status": "sending"
+    "status": "failed"
   },
   "publisher-smoke-andy": {
     "actor": "andy",
