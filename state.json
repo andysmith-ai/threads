@@ -1,10 +1,15 @@
 {
   "publisher-reply-current-agent": {
     "actor": "agent",
+    "last_media_id": "17900237217580880",
+    "media_ids": [
+      "17900237217580880"
+    ],
     "reply_to": "publisher-reply-current-andy",
     "reply_to_id": null,
     "reply_to_url": null,
-    "status": "sending"
+    "status": "published",
+    "url": "https://www.threads.com/@agent.smith.wiki/post/DdW26AVIISA"
   },
   "publisher-reply-current-andy": {
     "actor": "andy",
