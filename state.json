@@ -1,4 +1,11 @@
 {
+  "publisher-reply-smoke-agent": {
+    "actor": "agent",
+    "reply_to": "publisher-reply-smoke-andy",
+    "reply_to_id": null,
+    "reply_to_url": null,
+    "status": "sending"
+  },
   "publisher-reply-smoke-andy": {
     "actor": "andy",
     "last_media_id": "18105324176210311",
