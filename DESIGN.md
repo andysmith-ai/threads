@@ -82,8 +82,12 @@ Variables:
 - `ANDY_THREADS_USER_ID`
 - `AGENT_THREADS_USER_ID`
 
-Both tokens need `threads_basic` and `threads_content_publish`. The Andy post
-must allow replies from the Agent account.
+Both accounts must be app roles/testers while the Meta app is in development.
+Tokens need `threads_basic`, `threads_content_publish`, and
+`threads_manage_replies`; no read-replies permission is requested because inbound
+replies are not archived. Long-lived tokens expire after 60 days and must be
+refreshed while still valid. The Andy post must allow replies from the Agent
+account.
 
 ## Local validation
 
