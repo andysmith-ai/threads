@@ -51,6 +51,11 @@ Public-research slugs are deterministic from the Zulip message ID:
 `research-<id>-question` and `research-<id>-answer`. This makes a retried
 producer commit idempotent.
 
+For a public-research turn, the Andy question file ends with a dedicated
+`@agent.smith.wiki` segment. The Agent answer names the question slug as
+`reply_to`, so dependency resolution attaches it to that final mention rather
+than directly to the untagged root question.
+
 ## Delivery
 
 On a push touching `posts/**`, `publish/publish.py`:
