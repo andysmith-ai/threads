@@ -1,0 +1,34 @@
+name: Publish to Threads
+
+on:
+  push:
+    branches: [main]
+    paths: ['posts/**']
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency: threads-publish
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "threads-publisher"
+          git config user.email "bot@andysmith.ai"
+
+      - name: Publish dependency-ordered posts and replies
+        env:
+          ANDY_THREADS_ACCESS_TOKEN: ${{ secrets.ANDY_THREADS_ACCESS_TOKEN }}
+          ANDY_THREADS_USER_ID: ${{ vars.ANDY_THREADS_USER_ID }}
+          AGENT_THREADS_ACCESS_TOKEN: ${{ secrets.AGENT_THREADS_ACCESS_TOKEN }}
+          AGENT_THREADS_USER_ID: ${{ vars.AGENT_THREADS_USER_ID }}
+        run: python publish/publish.py

@@ -1,52 +1,74 @@
-# Threads channel — design & handoff
+# Threads channel — design
 
-## What this repo is
-Post store + CI publisher for the **Threads** account. Same shape as
-`andysmith-ai/telegram`: push a post into `posts/`, CI publishes the ones not yet
-in `state.json`, oldest-first, commits state. **The file is the source of truth —
-no content/image logic in CI.**
+## Boundary
 
-## KEY DIFFERENCE vs telegram
-Telegram is 1:1 with the blog. **Threads is NOT** — it holds **its own,
-audience-tuned posts** (short derivatives of the blog, written by a future
-"content factory" agent, not a straight repost). So the producer and the post
-format differ; only the reconcile+state+CI *machinery* is shared.
+This repository is the publication ledger for one platform and two actors:
+`andy` (`andysmith.ai`) and `agent` (`agent.smith.ai`). One repository is
+intentional: replies need the published media ID of their parent. Keeping both
+actors in one dependency graph avoids polling or copying IDs between repositories.
 
-## Reuse the telegram template
-Copy `andysmith-ai/telegram/publish/publish.py` + `.github/workflows/publish.yml`
-+ `state.json` + `publish/seed.py` and swap the **adapter**:
-- replace `telegram.py`/`richmessage.py` with a `threads_api.py` that talks to the
-  **Threads API** (Meta Graph API).
+Zeno produces immutable files. GitHub Actions owns the external Threads API calls.
+Tokens never enter the Zeno research sandbox.
 
-## Threads API notes (for the adapter)
-- Two-step publish: `POST /{user-id}/threads` (create a media container:
-  `text`, `media_type=TEXT|IMAGE|VIDEO`, `image_url`/`video_url`) → returns a
-  container id → `POST /{user-id}/threads_publish?creation_id=<id>`.
-- **Auth**: a long-lived user access token (Threads/Instagram Graph). Store as repo
-  secret `THREADS_ACCESS_TOKEN` (+ `THREADS_USER_ID` as a var).
-- **Limit**: ~500 chars/post. A longer post = a **chain**: publish segment 1, then
-  each next with `reply_to_id` = the previous post id.
-- Media is by **public URL** (verbatim from the file — no minting here), like telegram.
-- Permalink: the publish response returns the post id; build the public URL from it
-  for the `state.json` record / the thread reply.
+## Post contract
 
-## Post contract (proposed — refine when building the producer)
-```
-posts/YYYY-MM-DD-<slug>.md
+`posts/<stable-slug>.md`:
+
+```text
 ---
-media: [https://...]      # optional, final public URLs, verbatim
+actor: andy
+reply_to: optional-parent-slug
 ---
-<segment 1 text ≤ 500 chars>
+First text segment, at most 500 UTF-8 bytes.
 ---
-<segment 2 …>             # optional; each `---`-separated block = one post in a chain
+Optional second segment.
 ```
 
-## TODO (next session)
-- Build `publish/threads_api.py` (container-create + publish + chain) and a
-  `publish/publish.py` mirroring telegram's reconcile loop.
-- Decide the **content producer**: the content factory that turns a blog post into a
-  Threads-native short post/chain (its own agent/prompt — different from the 1:1
-  telegram repost).
-- Repo secret `THREADS_ACCESS_TOKEN`, var `THREADS_USER_ID`.
+`actor` is `andy` or `agent`. `reply_to` names another file without `.md`.
+Additional body segments form a chain: each replies to the preceding segment.
+A dependent file replies to its parent's final segment.
 
-See `andysmith-ai/telegram/DESIGN.md` for the shared reconcile/state/seed rationale.
+Public-research slugs are deterministic from the Zulip message ID:
+`research-<id>-question`, `research-<id>-progress`, and
+`research-<id>-answer`. This makes a retried producer commit idempotent.
+
+## Delivery
+
+On a push touching `posts/**`, `publish/publish.py`:
+
+1. parses and validates all unpublished files;
+2. waits until each declared parent has a published `last_media_id`;
+3. writes and pushes a `sending` claim to `state.json`;
+4. creates and publishes every segment through the selected actor;
+5. writes the returned media IDs and permalink to `state.json`.
+
+Claims happen before API calls. A crash can therefore drop a post but cannot
+duplicate it. Delete a `failed` or `sending` state entry only after checking the
+Threads account manually.
+
+The adapter follows the official two-step API: create
+`/{threads-user-id}/threads`, wait for the container, then call
+`/{threads-user-id}/threads_publish`. Replies pass `reply_to_id`.
+
+## Repository settings
+
+Secrets:
+
+- `ANDY_THREADS_ACCESS_TOKEN`
+- `AGENT_THREADS_ACCESS_TOKEN`
+
+Variables:
+
+- `ANDY_THREADS_USER_ID`
+- `AGENT_THREADS_USER_ID`
+
+Both tokens need `threads_basic` and `threads_content_publish`. The Andy post
+must allow replies from the Agent account.
+
+## Local validation
+
+```sh
+python publish/publish.py --dry-run
+```
+
+Dry-run validates files and the reply graph without credentials or API calls.
