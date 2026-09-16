@@ -31,10 +31,10 @@
   <h1>Threads OAuth setup</h1>
   <p>Authorize <strong>andysmith.ai</strong> and <strong>agent.smith.ai</strong> separately.
      Everything runs in this browser. Nothing is sent to Zeno or GitHub.</p>
-  <p class="notice"><strong>Security boundary:</strong> the Threads App Secret and resulting
-     tokens are stored in this origin's localStorage on this device. This is intentionally
-     client-side, contrary to Meta's normal server-side recommendation. This page has no
-     third-party scripts, but any future script deployed at this origin could read them.</p>
+  <p class="notice"><strong>Security boundary:</strong> the Threads App Secret is optionally
+     stored in this origin's localStorage on this device. OAuth transaction data is stored there
+     temporarily and deleted after completion. The long-lived token remains only in page memory
+     so you can copy it to GitHub Secrets. This page has no third-party scripts.</p>
 
   <form id="authorize" autocomplete="off">
     <label>Account
@@ -51,8 +51,6 @@
     </label>
     <label class="check"><input id="remember" type="checkbox" checked>
       Keep App ID and App Secret in localStorage on this tablet</label>
-    <label class="check"><input id="remember-token" type="checkbox" checked>
-      Keep the resulting account token in localStorage</label>
     <button type="submit">Authorize selected Threads account</button>
   </form>
 
@@ -60,10 +58,10 @@
   <section id="result" class="notice ok" hidden>
     <h2>Authorization complete</h2>
     <p id="identity"></p>
-    <label>Long-lived access token
+    <label>Long-lived access token — copy to GitHub Secret
       <textarea id="token" rows="5" readonly></textarea>
     </label>
-    <button id="copy" type="button">Copy token</button>
+    <button id="copy" type="button">Copy token for GitHub Secret</button>
     <p id="github-names"></p>
     <p id="expiry"></p>
   </section>
@@ -77,7 +75,7 @@
       <label>Meta JSON response
         <textarea id="exchange-json" rows="5" placeholder='{"access_token":"…","token_type":"bearer","expires_in":5184000}'></textarea>
       </label>
-      <button id="import-exchange" type="button">Import access token</button>
+      <button id="import-exchange" type="button">Use Meta response</button>
     </div>
   </section>
 
@@ -122,8 +120,7 @@
         const appId = byId('app-id').value.trim();
         const appSecret = byId('app-secret').value.trim();
         const state = `web.${randomState()}`;
-        const pending = { actor, appId, appSecret, state,
-          rememberToken: byId('remember-token').checked, createdAt: Date.now() };
+        const pending = { actor, appId, appSecret, state, createdAt: Date.now() };
         localStorage.removeItem(EXCHANGE_KEY);
         localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
         if (byId('remember').checked) {
@@ -173,12 +170,8 @@
         const userId = String(short.user_id);
         const prefix = pending.actor.toUpperCase();
         const expiresAt = long.expires_in ? new Date(Date.now() + Number(long.expires_in) * 1000) : null;
-        if (pending.rememberToken) {
-          localStorage.setItem(`threads.credentials.${pending.actor}`, JSON.stringify({
-            userId, accessToken: token, expiresAt: expiresAt?.toISOString() || null
-          }));
-        }
         localStorage.removeItem(EXCHANGE_KEY);
+        byId('exchange-json').value = '';
         byId('identity').textContent = `${pending.actor}: Threads user ID ${userId}`;
         byId('token').value = token;
         byId('github-names').textContent =
