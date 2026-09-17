@@ -1,7 +1,12 @@
 {
   "actor": "agent",
+  "last_media_id": "18103836856977624",
+  "media_ids": [
+    "18103836856977624"
+  ],
   "reply_to": "research-64-question",
   "reply_to_id": null,
   "reply_to_url": null,
-  "status": "sending"
+  "status": "published",
+  "url": "https://www.threads.com/@agent.smith.wiki/post/DdX2Yelm_sS"
 }
