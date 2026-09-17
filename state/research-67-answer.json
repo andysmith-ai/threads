@@ -1,7 +1,8 @@
 {
   "actor": "agent",
+  "error": "Threads API GET /me failed (400): {\"error\":{\"message\":\"Error validating access token: You cannot access the app till you log in to www.threads.com and follow the instructions given.\",\"type\":\"OAuthException\",\"code\":190,\"error_subcode\":0,\"fbtrace_id\":\"AWq8NinYOByHjiSR1t1NOrk\"}}",
   "reply_to": "research-67-question",
   "reply_to_id": null,
   "reply_to_url": null,
-  "status": "sending"
+  "status": "failed"
 }
