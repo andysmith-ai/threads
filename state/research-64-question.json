@@ -1,7 +1,13 @@
 {
   "actor": "andy",
+  "last_media_id": "18016659764943999",
+  "media_ids": [
+    "18084301385682166",
+    "18016659764943999"
+  ],
   "reply_to": null,
   "reply_to_id": null,
   "reply_to_url": null,
-  "status": "sending"
+  "status": "published",
+  "url": "https://www.threads.com/@andy.smith.ai/post/DdX1TzyIPF3"
 }
